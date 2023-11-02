@@ -4,6 +4,7 @@ from wtforms import StringField, SubmitField
 from wtforms.validators import DataRequired, Email
 from confluent_kafka import Producer
 from confluent_kafka.admin import AdminClient, NewTopic
+import uuid
 
 # create topic so that spark can see it when a topic does not exist (kafka volume is mounted for the first time)
 
@@ -27,8 +28,9 @@ class RegistrationForm(FlaskForm):
 def register():
     form = RegistrationForm()
     if form.validate_on_submit():
+        id = str(uuid.uuid4())
         email = request.form['email']
-        producer.produce("registration", key="email", value=email)
+        producer.produce("registration", key=id, value=email)
         producer.flush()
         return redirect(url_for('home'))
     return render_template('register.html', form=form)

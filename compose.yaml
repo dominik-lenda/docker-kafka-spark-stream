@@ -50,13 +50,16 @@ services:
       context: ./spark_app
     hostname: spark
     container_name: spark
+    restart: always
     develop:
       watch:
-        - action: rebuild
+        - action: sync+restart
           path: ./spark_app/target
     depends_on:
-      - python_app
-      - cassandra
+      python_app:
+        condition: service_started
+      cassandra:
+        condition: service_started
   cassandra:
     image: bitnami/cassandra:latest
     hostname: cassandra
