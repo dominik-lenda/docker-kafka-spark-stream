@@ -8,6 +8,7 @@
 
     <properties>
         <scala.version>2.12.18</scala.version>
+        <scala.binary.version>2.12</scala.binary.version>
         <spark.version>3.4.1</spark.version>
     </properties>
 
@@ -19,24 +20,24 @@
         </dependency>
         <dependency>
             <groupId>org.apache.spark</groupId>
-            <artifactId>spark-core_2.12</artifactId>
+            <artifactId>spark-core_${scala.binary.version}</artifactId>
             <version>${spark.version}</version>
             <scope>provided</scope>
         </dependency>
         <dependency>
             <groupId>org.apache.spark</groupId>
-            <artifactId>spark-sql_2.12</artifactId>
+            <artifactId>spark-sql_${scala.binary.version}</artifactId>
             <version>${spark.version}</version>
             <scope>provided</scope>
         </dependency>
         <dependency>
             <groupId>org.apache.spark</groupId>
-            <artifactId>spark-sql-kafka-0-10_2.12</artifactId>
+            <artifactId>spark-sql-kafka-0-10_${scala.binary.version}</artifactId>
             <version>${spark.version}</version>
         </dependency>
         <dependency>
             <groupId>com.datastax.spark</groupId>
-            <artifactId>spark-cassandra-connector-assembly_2.12</artifactId>
+            <artifactId>spark-cassandra-connector-assembly_${scala.binary.version}</artifactId>
             <version>${spark.version}</version>
         </dependency>
         <dependency>
@@ -49,13 +50,11 @@
             <artifactId>joda-time</artifactId>
             <version>2.12.5</version>
         </dependency>
-        <!-- https://mvnrepository.com/artifact/com.github.bastiaanjansen/OTP-Java -->
         <dependency>
             <groupId>com.github.bastiaanjansen</groupId>
-            <artifactId>OTP-Java</artifactId>
-            <version>1.0.4.1</version>
+            <artifactId>otp-java</artifactId>
+            <version>2.0.3</version>
         </dependency>
-
     </dependencies>
     <build>
         <sourceDirectory>src/main/scala</sourceDirectory>
