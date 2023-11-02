@@ -1,0 +1,83 @@
+version: "2"
+services:
+  zookeeper:
+    image: confluentinc/cp-zookeeper:latest
+    hostname: zookeeper
+    container_name: zookeeper
+    ports:
+      - "2181:2181"
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    volumes:
+      - zookeeper-data:/var/lib/zookeeper/data
+      - zookeeper-logs:/var/lib/zookeeper/log
+  kafka:
+    image: confluentinc/cp-kafka:latest
+    hostname: kafka0
+    container_name: kafka
+    depends_on:
+      - zookeeper
+    ports:
+      - "9092:9092"
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka0:29092,PLAINTEXT_HOST://localhost:9092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+    volumes:
+      - kafka-data:/var/lib/kafka/data
+    command: sh -c "./bin/kafka-topics --create --topic registration --bootstrap-server localhost:9092"
+  python_app:
+    build:
+      context: ./python_app
+    hostname: python_app
+    container_name: python_app
+    depends_on:
+      kafka:
+        condition: service_started
+      zookeeper:
+        condition: service_started
+    ports:
+      - 5000:5000
+    develop:
+      watch:
+        - action: rebuild
+          path: ./python_app
+  spark:
+    build:
+      context: ./spark_app
+    hostname: spark
+    container_name: spark
+    develop:
+      watch:
+        - action: rebuild
+          path: ./spark_app
+    depends_on:
+      - python_app
+      - cassandra
+  cassandra:
+    image: bitnami/cassandra:latest
+    hostname: cassandra
+    container_name: cassandra
+    ports:
+      - "127.0.0.1:9042:9042"
+    environment:
+      - CASSANDRA_TRANSPORT_PORT_NUMBER=7000
+    volumes:
+      - cassandra-data:/bitnami/cassandra
+volumes:
+  zookeeper-data:
+    driver: local
+    name: zookeeper-data
+  zookeeper-logs:
+    driver: local
+    name: zookeeper-logs
+  kafka-data:
+    driver: local
+    name: kafka-data
+  cassandra-data:
+    driver: local
+    name: cassandra-data

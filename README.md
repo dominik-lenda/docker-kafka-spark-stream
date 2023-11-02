@@ -1,1 +1,1 @@
-# docker-kafka-spark-stream
+# docker-kafka-python-spark-cassandra
