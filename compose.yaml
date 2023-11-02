@@ -53,7 +53,7 @@ services:
     develop:
       watch:
         - action: rebuild
-          path: ./spark_app
+          path: ./spark_app/target
     depends_on:
       - python_app
       - cassandra
