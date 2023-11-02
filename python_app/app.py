@@ -3,7 +3,15 @@ from flask_wtf import FlaskForm
 from wtforms import StringField, SubmitField
 from wtforms.validators import DataRequired, Email
 from confluent_kafka import Producer
+from confluent_kafka.admin import AdminClient, NewTopic
 
+# create topic so that spark can see it when a topic does not exist (kafka volume is mounted for the first time)
+
+admin_client = AdminClient({
+    "bootstrap.servers": "kafka0:29092"
+})
+topic = NewTopic("registration", num_partitions=1, replication_factor=1)
+admin_client.create_topics([topic])
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'secret_key12381'

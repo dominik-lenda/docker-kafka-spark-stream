@@ -29,7 +29,6 @@ services:
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
     volumes:
       - kafka-data:/var/lib/kafka/data
-    command: sh -c "./bin/kafka-topics --create --topic registration --bootstrap-server localhost:9092"
   python_app:
     build:
       context: ./python_app
