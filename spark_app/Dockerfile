@@ -7,12 +7,12 @@ WORKDIR /app
 USER root
 
 RUN set -ex; \
-    apt-get update; \
+    apt-get -y update; \
+    apt-get install -y maven; \
     rm -rf /var/lib/apt/lists/*
-
-USER spark
 
 COPY . .
 
-CMD ["/opt/spark/bin/spark-submit", "--class", "upwork.test.docker.TopicHandler", "--master", "local[*]", "/app/target/TopicHandler-1.0-SNAPSHOT-jar-with-dependencies.jar", "cassandra" ,"kafka0", "29092"]
+CMD ["/bin/bash", "-c", "mvn -f /app package; \
+    /opt/spark/bin/spark-submit --class upwork.test.docker.TopicHandler --master local[*] /app/target/TopicHandler-1.0-SNAPSHOT-jar-with-dependencies.jar cassandra kafka0 29092"]
 

@@ -60,6 +60,8 @@ services:
         condition: service_started
       cassandra:
         condition: service_started
+    volumes:
+      - maven-repo:/root/.m2
   cassandra:
     image: bitnami/cassandra:latest
     hostname: cassandra
@@ -83,3 +85,6 @@ volumes:
   cassandra-data:
     driver: local
     name: cassandra-data
+  maven-repo:
+    driver: local
+    name: spark-maven-repo

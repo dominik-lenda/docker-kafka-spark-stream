@@ -1,6 +1,3 @@
-.idea
-target/*
-!target/TopicHandler-1.0-SNAPSHOT-jar-with-dependencies.jar
-TopicHandler.iml
-run.sh
-emailOTP.txt
+/*
+!pom.xml
+!src/*
