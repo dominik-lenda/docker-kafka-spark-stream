@@ -12,7 +12,7 @@ admin_client = AdminClient({
 })
 email_topic = NewTopic("email", num_partitions=1, replication_factor=1)
 otp_topic = NewTopic("otp", num_partitions=1, replication_factor=1)
-admin_client.create_topics([email_topic])
+admin_client.create_topics([email_topic, otp_topic])
 
 conf = {'bootstrap.servers': 'kafka0:29092'}
 producer = Producer(conf)
@@ -35,7 +35,7 @@ def register():
     if form.validate_on_submit():
         session['id'] = str(uuid.uuid4())
         email = request.form['email']
-        producer.produce("email_topic", key=id, value=email)
+        producer.produce('email_topic', key=session['id'], value=email)
         producer.flush()
 
         return redirect(url_for('otp'))
@@ -45,9 +45,8 @@ def register():
 def otp():
     form = OtpForm()
     if form.validate_on_submit():
-        id = session['id']
         otp = request.form['otp']
-        producer.produce("otp_topic", key=id, value=otp)
+        producer.produce("otp_topic", key=session['id'], value=otp)
         producer.flush()
 
         if otp == '123':
