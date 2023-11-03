@@ -35,6 +35,10 @@ object TopicHandler {
       .option("failOnDataLoss", "false")
       .load()
 
+    //    val dfc = spark.read.table("mycatalog.testks.user")
+    //    dfc.show()
+
+    // Send Email with OTP
     val query = df.writeStream
       .format("memory")
       .queryName("emailQuery")
@@ -59,57 +63,47 @@ object TopicHandler {
             mockEmailSending(emailAdress, otp)
           }
           case _ => {}
+        }
+        Thread.sleep(2000)
       }
-      Thread.sleep(2000)
     }
+
+    future.onComplete {
+      case Success(_) => println("Email sent successfully.")
+      case Failure(e) => println(s"Email sending failed: ${e.getMessage}")
+    }
+
+    // Save output in Cassandra
+    val sinkDF = df.selectExpr("CAST(key AS STRING)", "CAST(value AS STRING)").as[(String, String)]
+
+    val checkpointLocation = "/tmp/check_point"
+    val query1 = sinkDF.writeStream
+      .option("checkpointLocation", checkpointLocation)
+      .format("org.apache.spark.sql.cassandra")
+      .cassandraFormat("user", "testks")
+      .outputMode("append")
+      .start()
+
+    query.awaitTermination()
+    query1.awaitTermination()
+
   }
 
-  future.onComplete {
-    case Success(_) => println("Email sent successfully.")
-    case Failure(e) => println(s"Email sending failed: ${e.getMessage}")
+  def createOTP(passwordLength: Int): String = {
+    val secret = SecretGenerator.generate()
+    val hotp = new HOTPGenerator.Builder(secret)
+      .withPasswordLength(8)
+      .withAlgorithm(HMACAlgorithm.SHA256)
+      .build()
+    val counter = 5
+    hotp.generate(counter)
   }
 
-  //    val rawDF = df.selectExpr("CAST(key AS STRING)", "CAST(value AS STRING)").as[(String, String)]
-
-
-  //    val dfc = spark.read.table("mycatalog.testks.user")
-  //    dfc.show()
-
-  //     val query = rawDF.writeStream
-  //       .outputMode("append")
-  //       .format("console")
-  //       .start()
-
-
-  //    val checkpointLocation = "/tmp/check_point"
-  //    val query = rawDF.writeStream
-  //      .option("checkpointLocation", checkpointLocation)
-  //      .format("org.apache.spark.sql.cassandra")
-  //      .cassandraFormat("user", "testks")
-  //      .outputMode("append")
-  //      .start()
-
-
-
-  query.awaitTermination()
-
-}
-
-def createOTP(passwordLength: Int): String = {
-  val secret = SecretGenerator.generate()
-  val hotp = new HOTPGenerator.Builder(secret)
-    .withPasswordLength(8)
-    .withAlgorithm(HMACAlgorithm.SHA256)
-    .build()
-  val counter = 5
-  hotp.generate(counter)
-}
-
-def mockEmailSending(emailAddress: String, otp: String): Unit = {
-  val content = s"OTP for $emailAddress is $otp"
-  val path = Paths.get("emailOTP.txt")
-  Files.write(path, content.getBytes(StandardCharsets.UTF_8))
-}
+  def mockEmailSending(emailAddress: String, otp: String): Unit = {
+    val content = s"OTP for $emailAddress is $otp"
+    val path = Paths.get("emailOTP.txt")
+    Files.write(path, content.getBytes(StandardCharsets.UTF_8))
+  }
 
 
 }
