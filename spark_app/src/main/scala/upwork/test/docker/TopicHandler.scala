@@ -3,8 +3,12 @@ package upwork.test.docker
 import org.apache.spark.sql.SparkSession
 import org.apache.spark.sql.cassandra.DataStreamWriterWrapper
 import com.bastiaanjansen.otp.{HMACAlgorithm, HOTPGenerator, SecretGenerator}
-import java.nio.file.{Paths, Files}
+
+import java.nio.file.{Files, Paths}
 import java.nio.charset.StandardCharsets
+import java.util.concurrent.Executors
+import scala.concurrent.{ExecutionContext, Future}
+import scala.util.{Failure, Success}
 
 object TopicHandler {
   def main(args: Array[String]): Unit = {
@@ -30,49 +34,82 @@ object TopicHandler {
       .option("subscribe", "registration")
       .option("failOnDataLoss", "false")
       .load()
-    val rawDF = df.selectExpr("CAST(key AS STRING)", "CAST(value AS STRING)").as[(String, String)]
 
-//    val dfc = spark.read.table("mycatalog.testks.user")
-//    dfc.show()
+    val query = df.writeStream
+      .format("memory")
+      .queryName("emailQuery")
+      .start()
 
-     val query = rawDF.writeStream
-       .outputMode("append")
-       .format("console")
-       .start()
+    implicit val ec = ExecutionContext.fromExecutor(Executors.newSingleThreadExecutor())
 
-//    val checkpointLocation = "/tmp/check_point"
-//    val query = rawDF.writeStream
-//      .option("checkpointLocation", checkpointLocation)
-//      .format("org.apache.spark.sql.cassandra")
-//      .cassandraFormat("user", "testks")
-//      .outputMode("append")
-//      .start()
+    val future = Future {
+      while (query.isActive) {
+        Thread.sleep(5000) // wait for query to start and populate the in-memory table
+        val lastEmailsDf = spark.sql("SELECT CAST(value as STRING) FROM emailQuery ORDER BY timestamp DESC LIMIT 2")
+        val lastEmails = lastEmailsDf.collect().map(_.mkString(",")).toSeq
+        val numLastEmails = lastEmails.length
 
-    val otp = createOTP(8)
-    val emailAdress = "dlenda1729@gmail.com"
-    mockEmailSending(emailAdress, otp)
-
-    query.awaitTermination()
-
+        numLastEmails match {
+          case n if n == 1 => val otp = createOTP(8)
+            val emailAdress = lastEmails(0) // send email when only one email is available
+            mockEmailSending(emailAdress, otp)
+          case n if n == 2 => if (lastEmails(0) != lastEmails(1)) { // send email when new email is pulled among two last emails
+            val otp = createOTP(8)
+            val emailAdress = lastEmails(0)
+            mockEmailSending(emailAdress, otp)
+          }
+          case _ => {}
+      }
+      Thread.sleep(2000)
+    }
   }
 
-  def createOTP(passwordLength: Int): String = {
-    val secret = SecretGenerator.generate()
-    val hotp = new HOTPGenerator.Builder(secret)
-      .withPasswordLength(8)
-      .withAlgorithm(HMACAlgorithm.SHA256)
-      .build()
-    val counter = 5
-    hotp.generate(counter)
+  future.onComplete {
+    case Success(_) => println("Email sent successfully.")
+    case Failure(e) => println(s"Email sending failed: ${e.getMessage}")
   }
 
-  def mockEmailSending(emailAddress: String, otp: String): Unit = {
-    val content = s"OTP for $emailAddress is $otp"
-    val path = Paths.get("emailOTP.txt")
-    Files.write(path, content.getBytes(StandardCharsets.UTF_8))
-  }
+  //    val rawDF = df.selectExpr("CAST(key AS STRING)", "CAST(value AS STRING)").as[(String, String)]
 
 
+  //    val dfc = spark.read.table("mycatalog.testks.user")
+  //    dfc.show()
+
+  //     val query = rawDF.writeStream
+  //       .outputMode("append")
+  //       .format("console")
+  //       .start()
+
+
+  //    val checkpointLocation = "/tmp/check_point"
+  //    val query = rawDF.writeStream
+  //      .option("checkpointLocation", checkpointLocation)
+  //      .format("org.apache.spark.sql.cassandra")
+  //      .cassandraFormat("user", "testks")
+  //      .outputMode("append")
+  //      .start()
+
+
+
+  query.awaitTermination()
+
+}
+
+def createOTP(passwordLength: Int): String = {
+  val secret = SecretGenerator.generate()
+  val hotp = new HOTPGenerator.Builder(secret)
+    .withPasswordLength(8)
+    .withAlgorithm(HMACAlgorithm.SHA256)
+    .build()
+  val counter = 5
+  hotp.generate(counter)
+}
+
+def mockEmailSending(emailAddress: String, otp: String): Unit = {
+  val content = s"OTP for $emailAddress is $otp"
+  val path = Paths.get("emailOTP.txt")
+  Files.write(path, content.getBytes(StandardCharsets.UTF_8))
+}
 
 
 }
