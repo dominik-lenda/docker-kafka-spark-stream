@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>OTP</title>
+</head>
+
+<body>
+    <h2>One Time Password</h2>
+    {% with messages = get_flashed_messages() %}
+    {% if messages %}
+    <ul class="flashes">
+        {% for message in messages %}
+        <li>{{ message }}</li>
+        {% endfor %}
+    </ul>
+    {% endif %}
+    {% endwith %}
+    <form method="POST">
+        {{ form.hidden_tag() }}
+        <label for="otp">Password:</label><br>
+        {{ form.otp(id='otp') }}<br>
+        {{ form.submit() }}
+    </form>
+</body>
+
+</html>
