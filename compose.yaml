@@ -27,6 +27,8 @@ services:
       KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
       KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 60000
+    restart: always
     volumes:
       - kafka-data:/var/lib/kafka/data
   python_app:
@@ -50,16 +52,7 @@ services:
       context: ./spark_app
     hostname: spark
     container_name: spark
-    restart: always
-    develop:
-      watch:
-        - action: sync+restart
-          path: ./spark_app/target
-    depends_on:
-      python_app:
-        condition: service_started
-      cassandra:
-        condition: service_started
+    restart: on-failure
     volumes:
       - maven-repo:/root/.m2
   cassandra:
