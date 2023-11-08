@@ -72,18 +72,17 @@ def consume_loop():
             raise KafkaException(event.error())
         else:
             val = event.value().decode("utf8")
+            key = event.key().decode("utf8")
             consumer.commit()
-            print(val)
             break
-    return val
+    return key, val
 
 
 def verifyOTP(id, client_otp):
     producer.produce("otp", key=id, value=client_otp)
     producer.flush()
-    verification = consume_loop()
-    # consumer.close()
-    return verification
+    id, verification = consume_loop()
+    return id, verification
 
 
 app = Flask(__name__)
@@ -122,8 +121,8 @@ def otp():
     if form.validate_on_submit():
         print("NEW TRY")
         otp = request.form["otp"]
-        is_authenticated = verifyOTP(session["id"], otp)
-        if is_authenticated == "true":
+        id, is_authenticated = verifyOTP(session["id"], otp)
+        if id == session["id"] and is_authenticated == "true":
             return redirect(url_for("home"))
         else:
             flash("Wrong OTP")
