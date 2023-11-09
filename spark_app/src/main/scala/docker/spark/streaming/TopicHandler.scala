@@ -2,11 +2,14 @@ package docker.spark.streaming
 
 import org.apache.spark.sql.{DataFrame, SaveMode, SparkSession}
 import com.bastiaanjansen.otp.{HMACAlgorithm, HOTPGenerator, SecretGenerator}
-import org.apache.spark.sql.cassandra.{DataFrameWriterWrapper, DataStreamWriterWrapper}
-import org.apache.spark.sql.functions.{lit, udf}
+import org.apache.spark.sql.cassandra.DataStreamWriterWrapper
+import org.apache.spark.sql.functions.lit
 
 import java.nio.file.{Files, Paths}
 import java.nio.charset.StandardCharsets
+import java.util.Properties
+import javax.mail._
+import javax.mail.internet._
 
 object TopicHandler {
   def main(args: Array[String]): Unit = {
@@ -52,7 +55,7 @@ object TopicHandler {
       if (!emailOtp.isEmpty) {
         val email = emailOtp(0).getString(0)
         val serverOtp = createOTP()
-        mockEmailSending(email, serverOtp)
+        sendEmail(email, serverOtp)
 
         val otpTable = batchDF.withColumn("serverOtp", lit(serverOtp))
         otpTable.write
@@ -70,8 +73,9 @@ object TopicHandler {
     val joinCondition = clientOtpDF.col("idOtpClient") === serverOtpTable.col("id")
     val joinedDF = clientOtpDF.join(serverOtpTable, joinCondition).drop("idOtpClient")
     val correctOtpDF = joinedDF.withColumn("isOtpCorrect", joinedDF("serverOtp") === joinedDF("clientOtp"))
+    // add order by timestamp and last record
 
-
+    showStream(correctOtpDF)
     correctOtpDF
       .selectExpr("CAST(id AS STRING) AS key", "CAST(isOtpCorrect AS STRING) AS value")
       .writeStream
@@ -95,10 +99,20 @@ object TopicHandler {
     hotp.generate(5)
   }
 
-  def mockEmailSending(emailAddress: String, otp: String): Unit = {
-    val content = s"OTP for $emailAddress is $otp"
-    val path = Paths.get("emailOTP.txt")
-    Files.write(path, content.getBytes(StandardCharsets.UTF_8))
+  def sendEmail(emailAddress: String, otp: String): Unit = {
+    val props = new Properties()
+    props.put("mail.smtp.host", "localhost")
+    props.put("mail.smtp.port", "25")
+
+    val session = Session.getInstance(props, null)
+    val message = new MimeMessage(session)
+
+    message.setFrom(new InternetAddress("serveotp@mail.com"))
+    message.setRecipients(Message.RecipientType.TO, emailAddress)
+    message.setSubject("One Time Password")
+    message.setText(s"Your OTP is $otp")
+
+    Transport.send(message)
   }
 
   val showTable = (spark: SparkSession, tableName: String) => spark.read.table(s"mycatalog.testks.$tableName").show()

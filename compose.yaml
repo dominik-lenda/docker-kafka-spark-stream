@@ -65,6 +65,24 @@ services:
       - CASSANDRA_TRANSPORT_PORT_NUMBER=7000
     volumes:
       - cassandra-data:/bitnami/cassandra
+  smtp4dev:
+    image: rnwood/smtp4dev:v3
+    container_name: smtp4dev
+    restart: always
+    ports:
+      # Change the number before : to the port the web interface should be accessible on
+      - '3000:80'
+      # Change the number before : to the port the SMTP server should be accessible on
+      - '25:25'
+      # Change the number before : to the port the IMAP server should be accessible on
+      - '143:143'
+    volumes:
+      # This is where smtp4dev stores the database..
+      - smtp4dev-data:/smtp4dev
+    environment:
+      #Specifies the server hostname. Used in auto-generated TLS certificate if enabled.
+      - ServerOptions__HostName=smtp4dev
+
 volumes:
   zookeeper-data:
     driver: local
@@ -81,3 +99,6 @@ volumes:
   maven-repo:
     driver: local
     name: spark-maven-repo
+  smtp4dev-data:
+    driver: local
+    name: smtp4dev-data
