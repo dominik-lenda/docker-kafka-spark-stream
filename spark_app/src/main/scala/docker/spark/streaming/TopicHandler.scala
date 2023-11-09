@@ -50,12 +50,14 @@ object TopicHandler {
       .start()
 
     // send email with OTP and write OTP table
+    val smtpHost = args(3)
+    val smtpPort = args(4)
     emailDF.writeStream.foreachBatch { (batchDF: DataFrame, batchId: Long) =>
       val emailOtp = batchDF.select("email").collect()
       if (!emailOtp.isEmpty) {
         val email = emailOtp(0).getString(0)
         val serverOtp = createOTP()
-        sendEmail(email, serverOtp)
+        sendEmail(email, serverOtp, smtpHost, smtpPort)
 
         val otpTable = batchDF.withColumn("serverOtp", lit(serverOtp))
         otpTable.write
@@ -73,7 +75,6 @@ object TopicHandler {
     val joinCondition = clientOtpDF.col("idOtpClient") === serverOtpTable.col("id")
     val joinedDF = clientOtpDF.join(serverOtpTable, joinCondition).drop("idOtpClient")
     val correctOtpDF = joinedDF.withColumn("isOtpCorrect", joinedDF("serverOtp") === joinedDF("clientOtp"))
-    // add order by timestamp and last record
 
     showStream(correctOtpDF)
     correctOtpDF
@@ -99,10 +100,10 @@ object TopicHandler {
     hotp.generate(5)
   }
 
-  def sendEmail(emailAddress: String, otp: String): Unit = {
+  def sendEmail(emailAddress: String, otp: String, smtpHost: String, smtpPort: String): Unit = {
     val props = new Properties()
-    props.put("mail.smtp.host", "localhost")
-    props.put("mail.smtp.port", "25")
+    props.put("mail.smtp.host", smtpHost)
+    props.put("mail.smtp.port", smtpPort)
 
     val session = Session.getInstance(props, null)
     val message = new MimeMessage(session)

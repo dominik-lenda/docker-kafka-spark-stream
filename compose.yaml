@@ -68,6 +68,7 @@ services:
   smtp4dev:
     image: rnwood/smtp4dev:v3
     container_name: smtp4dev
+    hostname: smtp4dev0
     restart: always
     ports:
       # Change the number before : to the port the web interface should be accessible on

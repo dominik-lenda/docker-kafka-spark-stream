@@ -14,5 +14,5 @@ RUN set -ex; \
 COPY . .
 
 CMD ["/bin/bash", "-c", "mvn -f /app package; \
-    /opt/spark/bin/spark-submit --class docker.spark.streaming.TopicHandler --master local[*] /app/target/TopicHandler-1.0-SNAPSHOT-jar-with-dependencies.jar cassandra kafka0 29092"]
+    /opt/spark/bin/spark-submit --class docker.spark.streaming.TopicHandler --master local[*] /app/target/TopicHandler-1.0-SNAPSHOT-jar-with-dependencies.jar cassandra kafka0 29092 smtp4dev0 25"]
 
