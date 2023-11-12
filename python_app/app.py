@@ -7,6 +7,7 @@ import uuid
 from confluent_kafka import Consumer, KafkaException
 from confluent_kafka.admin import AdminClient, NewTopic
 from confluent_kafka import TopicPartition
+import sys
 
 
 def topic_exists(admin, topic):
@@ -47,7 +48,7 @@ unique_id = str(uuid.uuid4())
 consumer_conf = {
     "bootstrap.servers": "kafka0:29092",
     # "bootstrap.servers": "localhost:9092",
-    "group.id": "otp-xd",
+    "group.id": "otp",
     "session.timeout.ms": 60000,
     "auto.offset.reset": "latest",
     "enable.auto.commit": False,
@@ -60,10 +61,19 @@ partitions = [
 ]
 
 
+def delivery_callback(err, msg):
+    if err:
+        sys.stderr.write("%% Message failed delivery: %s\n" % err)
+    else:
+        sys.stderr.write(
+            "%% Message delivered to %s [%d] @ %d\n"
+            % (msg.topic(), msg.partition(), msg.offset())
+        )
+
+
 def consume_loop():
     # Use static membership to avoid slow rebalances on topic changes
     consumer.assign(partitions)
-    # consumer.subscribe(["confirmation"])
     while True:
         event = consumer.poll(1.0)
         if event is None:
@@ -79,8 +89,8 @@ def consume_loop():
 
 
 def verifyOTP(id, client_otp):
-    producer.produce("otp", key=id, value=client_otp)
-    producer.flush()
+    producer.produce("otp", key=id, value=client_otp, callback=delivery_callback)
+    producer.poll()
     id, verification = consume_loop()
     return id, verification
 
@@ -108,8 +118,10 @@ def register():
     if form.validate_on_submit():
         session["id"] = str(uuid.uuid4())
         email = request.form["email"]
-        producer.produce("email", key=session["id"], value=email)
-        producer.flush()
+        producer.produce(
+            "email", key=session["id"], value=email, callback=delivery_callback
+        )
+        producer.poll()
 
         return redirect(url_for("otp"))
     return render_template("register.html", form=form)
@@ -119,7 +131,6 @@ def register():
 def otp():
     form = OtpForm()
     if form.validate_on_submit():
-        print("NEW TRY")
         otp = request.form["otp"]
         id, is_authenticated = verifyOTP(session["id"], otp)
         if id == session["id"] and is_authenticated == "true":
