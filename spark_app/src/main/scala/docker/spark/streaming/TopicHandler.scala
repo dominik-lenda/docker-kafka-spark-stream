@@ -3,10 +3,9 @@ package docker.spark.streaming
 import org.apache.spark.sql.{DataFrame, SaveMode, SparkSession}
 import com.bastiaanjansen.otp.{HMACAlgorithm, HOTPGenerator, SecretGenerator}
 import org.apache.spark.sql.cassandra.DataStreamWriterWrapper
-import org.apache.spark.sql.functions.lit
+import org.apache.spark.sql.functions.{col, from_json, lit}
+import org.apache.spark.sql.types.{StringType, StructType}
 
-import java.nio.file.{Files, Paths}
-import java.nio.charset.StandardCharsets
 import java.util.Properties
 import javax.mail._
 import javax.mail.internet._
@@ -22,8 +21,8 @@ object TopicHandler {
     spark.conf.set("spark.sql.catalog.mycatalog", "com.datastax.spark.connector.datasource.CassandraCatalog")
 
     spark.sql("CREATE DATABASE IF NOT EXISTS mycatalog.testks WITH DBPROPERTIES (class='SimpleStrategy',replication_factor='1')")
-    spark.sql("CREATE TABLE IF NOT EXISTS mycatalog.testks.user (id STRING, email STRING) USING cassandra PARTITIONED BY (id)")
-    spark.sql("CREATE TABLE IF NOT EXISTS mycatalog.testks.otp (id STRING, email STRING, serverOtp STRING) USING cassandra PARTITIONED BY (id)")
+    spark.sql("CREATE TABLE IF NOT EXISTS mycatalog.testks.user (id STRING, email STRING, name STRING) USING cassandra PARTITIONED BY (id)")
+    spark.sql("CREATE TABLE IF NOT EXISTS mycatalog.testks.otp (id STRING, email STRING, name STRING, serverOtp STRING) USING cassandra PARTITIONED BY (id)")
 
     import spark.implicits._
     val kafkaHost = args(1)
@@ -34,25 +33,33 @@ object TopicHandler {
       .format("kafka")
       .option("startingOffsets", "latest")
       .option("kafka.bootstrap.servers", s"$kafkaHost:$kafkaPort")
-      .option("subscribe", "email,otp")
+      .option("subscribe", "user,otp")
       .option("failOnDataLoss", "false")
       .option("maxOffsetsPerTrigger", "1")
+      .option("value", "1")
       .load()
 
-    // Write user data: id and email to cassandra
-    val emailDF = sdf.selectExpr("cast(key as string) as id", "cast(value as string) as email").where("topic == 'email'")
+    // deserialize json
+    val schema = new StructType().add("id", StringType).add("email", StringType).add("name", StringType)
+    val userSDF = sdf.select(from_json(col("value").cast("string"), schema).as("json")).where("topic == 'user'").select("json.*")
+
+    showStream(userSDF)
+
+    // Write user data: id, email, name to cassandra
     val checkpointLocation = "/tmp/check_point"
-    emailDF.writeStream
+    userSDF.writeStream
       .option("checkpointLocation", checkpointLocation)
       .format("org.apache.spark.sql.cassandra")
       .cassandraFormat("user", "testks")
       .outputMode("append")
       .start()
 
+    showTable(spark, "user")
+
     // send email with OTP and write OTP table
     val smtpHost = args(3)
     val smtpPort = args(4)
-    emailDF.writeStream.foreachBatch { (batchDF: DataFrame, batchId: Long) =>
+    userSDF.writeStream.foreachBatch { (batchDF: DataFrame, batchId: Long) =>
       val emailOtp = batchDF.select("email").collect()
       if (!emailOtp.isEmpty) {
         val email = emailOtp(0).getString(0)
@@ -75,7 +82,6 @@ object TopicHandler {
     val joinCondition = clientOtpDF.col("idOtpClient") === serverOtpTable.col("id")
     val joinedDF = clientOtpDF.join(serverOtpTable, joinCondition).drop("idOtpClient")
     val correctOtpDF = joinedDF.withColumn("isOtpCorrect", joinedDF("serverOtp") === joinedDF("clientOtp"))
-
     showStream(correctOtpDF)
     correctOtpDF
       .selectExpr("CAST(id AS STRING) AS key", "CAST(isOtpCorrect AS STRING) AS value")

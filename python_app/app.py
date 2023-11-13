@@ -8,6 +8,7 @@ from confluent_kafka import Consumer, KafkaException
 from confluent_kafka.admin import AdminClient, NewTopic
 from confluent_kafka import TopicPartition
 import sys
+import json
 
 
 def topic_exists(admin, topic):
@@ -33,7 +34,7 @@ def create_topic(admin, topic):
 # Create topics if they don't exist
 # admin = AdminClient({"bootstrap.servers": "localhost:9092"})
 admin = AdminClient({"bootstrap.servers": "kafka0:29092"})
-topic_names = ["email", "otp", "confirmation"]
+topic_names = ["user", "otp", "confirmation"]
 for topic in topic_names:
     if not topic_exists(admin, topic):
         create_topic(admin, topic)
@@ -101,6 +102,7 @@ app.config["SECRET_KEY"] = "secret_key12381"
 
 class RegistrationForm(FlaskForm):
     email = StringField("Email", validators=[DataRequired(), Email()])
+    name = StringField("Name", validators=[DataRequired()])
     submit = SubmitField("Register")
 
 
@@ -110,16 +112,19 @@ class OtpForm(FlaskForm):
 
 
 session = {}
+user = {}
 
 
 @app.route("/", methods=["GET", "POST"])
 def register():
     form = RegistrationForm()
     if form.validate_on_submit():
-        session["id"] = str(uuid.uuid4())
-        email = request.form["email"]
+        user["id"] = str(uuid.uuid4())
+        user["email"] = request.form["email"]
+        user["name"] = request.form["name"]
+        json_val = json.dumps(user).encode("utf8")
         producer.produce(
-            "email", key=session["id"], value=email, callback=delivery_callback
+            "user", key=user["id"], value=json_val, callback=delivery_callback
         )
         producer.poll()
 
@@ -131,8 +136,10 @@ def register():
 def otp():
     form = OtpForm()
     if form.validate_on_submit():
+        session["id"] = user["id"]
         otp = request.form["otp"]
         id, is_authenticated = verifyOTP(session["id"], otp)
+        print(id, is_authenticated)
         if id == session["id"] and is_authenticated == "true":
             return redirect(url_for("home"))
         else:
